@@ -7,6 +7,7 @@
 #ifdef __AVR__
 #include <avr/power.h>
 #endif
+
 // Libraries for LCD
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
@@ -19,8 +20,7 @@
 #define PIN            4
 
 // Number of LEDs
-#define NUMLEDS     80
-#define NUMLEDSM1   (NUMLEDS-1)
+#define NUMLEDS      80
 
 // Properties of star
 #define NUMPOINTS   5
@@ -33,12 +33,7 @@
 // Time to stay on one mode when in Automatic cycliing (milliseconds)
 #define AUTOTIME  30000
 
-// Number of rows of pixels
-#define NUMROWS 26
-
-
-
-// List of display modes
+// ENUM List of display modes
 enum DisplayMode {
   SOLID,
   RAINBOW1,
@@ -57,6 +52,8 @@ enum DisplayMode {
   NUMMODES
 };
 
+// Character to display for each mode in the Enum list, need to keep these in sync
+// Probably a better more elegant way to do this
 char DisplayModeString[][16] = {
   "Solid",
   "Rainbow 1",
@@ -75,15 +72,19 @@ char DisplayModeString[][16] = {
 };
 
 // Global variables
-static long lastswitchtime = 0;  // Store last time the mode switched for automatic
-static int brightnessValue = 20; // Set brightness, Max is 255 but don't go above 20 without additional power supply
+// Store last time the mode switched for automatic
+static long lastswitchtime = 0;
+// Set brightness, Max is 255 but don't go above 20 without additional power supply
+static int brightnessValue = 20;
+// Integer used for Charlie's preset
 static int CharlieJ = 0;
+// Array of delaytimes for each mode (Not used for Solid mode)
 static uint32_t delayTime[NUMMODES];
+// Initialize AutoMode to true
 static int AutoMode = 1;
+// Array of selected color for each mode (really only used for Solid mode)
 uint32_t selectedColor[NUMMODES];
 
-
-  
 // Include EEPROM I/O
 #include <EEPROM.h>
 
@@ -94,8 +95,7 @@ ClickEncoder *encoder;
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMLEDS, PIN, NEO_GRB + NEO_KHZ800);
 
 // Create lcd for LCD display
-//LiquidCrystal_I2C lcd(0x3F, 16, 2);
-LiquidCrystal_I2C lcd(0x27, 16, 2);
+LiquidCrystal_I2C lcd(0x3F, 16, 2);
 
 // List of predefined colors
 uint32_t red      = pixels.Color(255, 0, 0);
@@ -106,58 +106,31 @@ uint32_t magenta  = pixels.Color(255, 0, 255);
 uint32_t cyan     = pixels.Color(0, 255, 255);
 uint32_t white    = pixels.Color(255, 255, 255);
 uint32_t black    = pixels.Color(0, 0, 0);
-
 enum Colors { RED, GREEN, BLUE, YELLOW, MAGENTA, CYAN, WHITE, BLACK, NUMCOLORS };
 char ColorNames[][16] = {"Red", "Green", "Blue", "Yellow", "Magenta", "Cyan", "White", "Black"};
 uint32_t ColorArray[] = {red, green, blue, yellow, magenta, cyan, white, black};
 
 // Displaymode, controlled by pushing rotary encoder button
 static int mode = 0;
+// Keep track of last mode, initialize to something invalid
 static int lastmode = -99;
 
+// Variables used for Rotary encoder
 int16_t value;
 static int last = 0;
 static long lastmillis = 0;
 static long startmillis = 0;
 uint32_t stepsize = 10;
-uint16_t i, j, k, l;
+//uint16_t i, j, k, l;
 
 // Timer routine
 void timerIsr() {
   encoder->service();
 }
-/*
-  const PROGMEM int LEDRows[] = {
-  2, 39, 40,
-  2, 38, 41,
-  2, 37, 42,
-  2, 36, 43,
-  2, 35, 44,
-  2, 34, 45,
-  2, 33, 46,
-  2, 32, 47,
-  16, 55, 54, 53, 52, 51, 50, 49, 48, 31, 30, 29, 28, 27, 26, 25, 24,
-  2, 56, 23,
-  2, 57, 22,
-  2, 58, 21,
-  2, 59, 20,
-  2, 60, 19,
-  2, 61, 18,
-  2, 62, 17,
-  2, 63, 16,
-  2, 64, 15,
-  2, 65, 14,
-  2, 66, 13, 
-  4, 67, 12, 0, 79,
-  6, 68, 77, 2, 78, 1, 11,
-  4, 69, 76, 3, 10,
-  6, 70, 74, 75, 5, 4, 9,
-  4, 71, 73, 6, 8,
-  2, 72, 7
-  };
-*/
 
-  const PROGMEM int LEDRows[NUMROWS][17] = {
+// Number of rows of pixels, defined rows of pixels for striped candy cane effect
+#define NUMROWS 26
+const PROGMEM int LEDRows[NUMROWS][17] = {
   {39, 40, 99},
   {38, 41, 99},
   {37, 42, 99},
@@ -177,93 +150,26 @@ void timerIsr() {
   {63, 16, 99},
   {64, 15, 99},
   {65, 14, 99},
-  {66, 13, 99}, 
+  {66, 13, 99},
   {67, 12, 0, 79, 99},
   {68, 77, 2, 78, 1, 11, 99},
   {69, 76, 3, 10, 99},
   {70, 74, 75, 5, 4, 9, 99},
   {71, 73, 6, 8, 99},
   {72, 7, 99}
-  };
-/*
-void StripesTest() {
-  int RowCounter = 0;
-  int RowStart = 0;
-  int TotalIndex = 0;
-//  Serial.println(F("BEGIN StripesTest"));
-//  Serial.print(F("NUMROWS is: "));
-//  Serial.println(NUMROWS);
-//  Serial.print(F("Sizeof LEDRows is: "));
-//  Serial.println(sizeof(LEDRows)/sizeof(LEDRows[0]));
-  for(int i = 0;i < NUMROWS;i++) {
-//    Serial.print(F("Begin RowNumber: "));
-//    Serial.print(i);
-//    Serial.print(F(" Number of points is: "));
-//    Serial.println(pgm_read_word(&LEDRows[RowStart]));
-    for(int j = 0;j < pgm_read_word(&LEDRows[RowStart]);j++) {
-      TotalIndex++;
-//      Serial.print(F("Point Index: "));
-//      Serial.print(TotalIndex);
-//      Serial.print(F(" Value is: "));
-//      Serial.println(pgm_read_word(&LEDRows[TotalIndex]));
-      if(RowCounter %2)
-        pixels.setPixelColor(pgm_read_word(&LEDRows[TotalIndex]), ColorArray[GREEN]);
-      else
-        pixels.setPixelColor(pgm_read_word(&LEDRows[TotalIndex]), ColorArray[BLUE]);
-    }
-    TotalIndex++;
-    RowStart=TotalIndex;
-    RowCounter ++;
-  }
-  pixels.show();
-}
-*/
-void StripesTest() {
-  int RowCounter = 0;
-  int RowStart = 0;
-  int TotalIndex = 0;
-//  Serial.println(F("BEGIN StripesTest"));
-//  Serial.print(F("NUMROWS is: "));
-//  Serial.println(NUMROWS);
-//  Serial.print(F("Sizeof LEDRows is: "));
-//  Serial.println(sizeof(LEDRows)/sizeof(LEDRows[0]));
-  for(int i = 0;i < NUMROWS;i++) {
-//    Serial.print(F("Begin RowNumber: "));
-//    Serial.print(i);
-//    Serial.print(F(" Number of points is: "));
-//    Serial.println(pgm_read_word(&LEDRows[RowStart]));
-    j = 0;
-    while(pgm_read_word(&LEDRows[i][j]) < 99) {
-//      TotalIndex++;
-//      Serial.print(F("I, J:"));
-//      Serial.print(i,j);
-//      Serial.print(F(" Value is: "));
-//      Serial.println(pgm_read_word(&LEDRows[TotalIndex]));
-      if(i%2)
-        pixels.setPixelColor(pgm_read_word(&LEDRows[i][j]), ColorArray[GREEN]);
-      else
-        pixels.setPixelColor(pgm_read_word(&LEDRows[i][j]), ColorArray[BLUE]);
-    j++;
-    }
-//    TotalIndex++;
-//    RowStart=TotalIndex;
-//    RowCounter ++;
-  }
-  pixels.show();
-}
+};
 
-void StripesTest2() {
+void Stripes() {
   int backstep = 0;
   int RowStart = 0;
   int TotalIndex = 0;
-  int j = 0;
-  int k = 0;
+  int i, j, k;
 
-  for(int i = 0;i < NUMROWS;i++) {
-    for(j = 0;j < NUMROWS - backstep;j++) {
-    pixels.fill(ColorArray[BLACK], 0, NUMLEDS);
+  for (i = 0; i < NUMROWS; i++) {
+    for (j = 0; j < NUMROWS - backstep; j++) {
+      pixels.fill(ColorArray[BLACK], 0, NUMLEDS);
       k = 0;
-      while(pgm_read_word(&LEDRows[j][k]) < 99) {
+      while (pgm_read_word(&LEDRows[j][k]) < 99) {
         pixels.setPixelColor(pgm_read_word(&LEDRows[j][k]), ColorArray[GREEN]);
         k++;
       }
@@ -321,11 +227,11 @@ int CheckForClick() {
           // Save settings starting with AutoMode followed by selectedColor and then delayTime
           EEPROM.put(0, mode);
           EEPROM.put(sizeof(int), AutoMode);
-          EEPROM.put(sizeof(int)*2, selectedColor);
-          EEPROM.put(sizeof(int)*2 + sizeof(selectedColor), delayTime);
+          EEPROM.put(sizeof(int) * 2, selectedColor);
+          EEPROM.put(sizeof(int) * 2 + sizeof(selectedColor), delayTime);
           delay(1500);
           lastmode = -99;
-          return(1);
+          return (1);
         }
         break;
       case ClickEncoder::Released:
@@ -346,7 +252,7 @@ int CheckForClick() {
           delay(1500);
           lastmode = -99;
           lastswitchtime = millis();
-          return(1);
+          return (1);
         }
         else {
           AutoMode = 1;
@@ -358,7 +264,7 @@ int CheckForClick() {
           lastmode = -99;
           lastswitchtime = millis();
           mode = 0;
-          return(1);
+          return (1);
         }
         break;
     }
@@ -407,7 +313,7 @@ int CheckForClickWithDelay(long tdelay)
   int TimeExpired = 0;
 
   startmillis = millis();
-  
+
   while (true) {
     if ((millis() - startmillis) >= tdelay)
       return 0;
@@ -448,27 +354,26 @@ void setup()
   lcd.print("Version 20200102");
   delay(5000);
 
-  
   // Read saved settings from EEPROM
   EEPROM.get(0, mode);
   EEPROM.get(sizeof(int), AutoMode);
-  EEPROM.get(sizeof(int)*2, selectedColor);
-  EEPROM.get(sizeof(int)*2 + sizeof(selectedColor), delayTime);
+  EEPROM.get(sizeof(int) * 2, selectedColor);
+  EEPROM.get(sizeof(int) * 2 + sizeof(selectedColor), delayTime);
 
   // Range check values
-  if(mode < 0) mode = 0;
-  else if(mode >= NUMMODES) mode = NUMMODES - 1;
+  if (mode < 0) mode = 0;
+  else if (mode >= NUMMODES) mode = NUMMODES - 1;
 
-  if(AutoMode < 0) AutoMode = 0;
-  else if(AutoMode > 1) AutoMode =1;
+  if (AutoMode < 0) AutoMode = 0;
+  else if (AutoMode > 1) AutoMode = 1;
 
   for ( i = 0; i < NUMMODES; i++) {
-    if(delayTime[i] < 0 || delayTime[i] > MAXDELAYTIME)
+    if (delayTime[i] < 0 || delayTime[i] > MAXDELAYTIME)
       delayTime[i] = 100;
-    if(selectedColor[i] < 0 || selectedColor[i] >= NUMCOLORS)
+    if (selectedColor[i] < 0 || selectedColor[i] >= NUMCOLORS)
       selectedColor[i] = 0;
   }
-  
+
   // Initial test, run through base colors
   for ( i = 0; i < NUMCOLORS; i++) {
     Solid(ColorArray[i]);
@@ -493,7 +398,6 @@ void loop()
   // Periodic check for encoder action
   CheckForClick();
 
-  
   // Main switch statement to display selected mode
   switch (mode) {
     case SOLID:
@@ -514,7 +418,7 @@ void loop()
         lastmode = mode;
         printDelayTime();
       }
-      rainbowCycle(10);
+      rainbow1(10);
       break;
     case RAINBOW2:
       if (mode != lastmode) {
@@ -524,7 +428,7 @@ void loop()
         lastmode = mode;
         printDelayTime();
       }
-      rainbow(10);
+      rainbow2(10);
       break;
     case POINTS:
       if (mode != lastmode) {
@@ -634,9 +538,17 @@ void loop()
         lastmode = mode;
         printDelayTime();
       }
-      StripesTest2();
+      Stripes();
       break;
   }
+}
+
+// Fill the dots with solid color
+void Solid(uint32_t c)
+{
+  for (uint16_t i = 0; i < pixels.numPixels(); i++)
+    pixels.setPixelColor(i, c);
+  pixels.show();
 }
 
 // Sets each point to a different color and then moves them around
@@ -669,14 +581,6 @@ void Points()
     if (CheckForClickWithDelay(delayTime[mode])) return;
 
   }
-}
-
-// Fill the dots with solid color
-void Solid(uint32_t c)
-{
-  for (uint16_t i = 0; i < pixels.numPixels(); i++)
-    pixels.setPixelColor(i, c);
-  pixels.show();
 }
 
 // Bounce colored pixel around
@@ -816,6 +720,8 @@ void Experimental()
 
 // Fill the dots one after the other with a color
 void Razzle() {
+  int i, j;
+  
   // Green
   for (i = 0; i < pixels.numPixels(); i++)
     pixels.setPixelColor(i, ColorArray[GREEN]);
@@ -843,6 +749,8 @@ void Razzle() {
 }
 
 void Burst() {
+  int i, j;
+  
   // Green
   for (i = 0; i < pixels.numPixels(); i++)
     pixels.setPixelColor(i, ColorArray[GREEN]);
@@ -865,6 +773,7 @@ void Burst() {
 
 void BurstStack() {
   int backstep = 0;
+  int i, j, k;
 
   for (i = 0; i < pixels.numPixels(); i++)
     pixels.setPixelColor(i, ColorArray[GREEN]);
@@ -894,11 +803,12 @@ void BurstStack() {
 
 void BurstStack2() {
   int backstep = 0;
+  int i, j, k;
 
   for (i = 0; i < pixels.numPixels(); i++)
     pixels.setPixelColor(i, ColorArray[GREEN]);
   pixels.show();
- if (CheckForClickWithDelay(500)) return;
+  if (CheckForClickWithDelay(500)) return;
 
   for (k = 0; k < LEDSPERLEG; k++) {
     for (i = 0; i < (LEDSPERLEG - backstep); i++) {
@@ -942,6 +852,8 @@ void BurstStack2() {
 void Candycane() {
 
   int redstep = 0;
+  int i;
+  
   for (i = 0; i < pixels.numPixels(); i++)
     pixels.setPixelColor(i, ColorArray[WHITE]);
 
@@ -958,6 +870,7 @@ void Candycane() {
 }
 
 void RedGreenFade() {
+  int i;
 
   for (i = 0; i < pixels.numPixels(); i++) {
     pixels.setPixelColor(i, ColorArray[GREEN]);
@@ -970,16 +883,16 @@ void RedGreenFade() {
     if (CheckForClick()) return;
     pixels.show();
   }
-  
-  CheckForClickWithDelay(delayTime[mode]*10);
-  
+
+  CheckForClickWithDelay(delayTime[mode] * 10);
+
   for (i = 0; i < 255; i++) {
     Solid(pixels.Color(255 - i, i, 0));
     if (CheckForClick()) return;
     pixels.show();
   }
 
-  CheckForClickWithDelay(delayTime[mode]*10);
+  CheckForClickWithDelay(delayTime[mode] * 10);
 }
 
 // Color all green and have randomly have red dots pop in and out
@@ -990,6 +903,7 @@ void Twinkle()
   int FT = 1;
   int PixelStatus[NUMLEDS];
   int randomCandidate;
+  int i;
 
   for (i = 0; i < pixels.numPixels(); i++) {
     pixels.setPixelColor(i, ColorArray[GREEN]);
@@ -1001,9 +915,9 @@ void Twinkle()
 
   while (true) {
     for (i = 0; i < NumReds; i++) {
-      randomCandidate = random(1, NUMLEDSM1 - 1);
+      randomCandidate = random(1, NUMLEDS - 2);
       while (PixelStatus[randomCandidate]) {
-        randomCandidate = random(1, NUMLEDSM1 - 1);
+        randomCandidate = random(1, NUMLEDS - 2);
       }
       if (!FT) {
         PixelStatus[Reds[i]] = 0;
@@ -1019,14 +933,14 @@ void Twinkle()
       PixelStatus[randomCandidate - 1] = 1;
       pixels.setPixelColor(Reds[i], ColorArray[RED]);
       pixels.show();
-      if(CheckForClickWithDelay(delayTime[mode])) return;
+      if (CheckForClickWithDelay(delayTime[mode])) return;
     }
     FT = 0;
   }
 }
 
 //cycle all the brightdots together
-void rainbow(uint8_t wait)
+void rainbow2(uint8_t wait)
 {
   uint16_t i, j;
 
@@ -1042,7 +956,7 @@ void rainbow(uint8_t wait)
 }
 
 // Slightly different, this makes the rainbow equally distributed throughout
-void rainbowCycle(uint8_t wait)
+void rainbow1(uint8_t wait)
 {
   uint16_t i, j;
 
@@ -1058,7 +972,7 @@ void rainbowCycle(uint8_t wait)
 
 void SetPixel(uint8_t pixelnum, uint32_t color) {
   int i;
-  
+
   if (CharlieJ >= 256)
     CharlieJ = 0;
 
@@ -1080,11 +994,11 @@ void Charlie()
   int pixelSeq[] = {39, 38, 37, 36, 35, 34, 33, 32, 0, 79, 47, 46, 45, 44, 43, 42, 41, 40};
 
   while (true) {
-    for (i = 0; i < sizeof(pixelSeq)/2; i++) {
+    for (i = 0; i < sizeof(pixelSeq) / 2; i++) {
       SetPixel(pixelSeq[i], ColorArray[RED]);
       if (CheckForClickWithDelay(delayTime[mode])) return;
     }
-    for (i = 0; i < sizeof(pixelSeq)/2; i++) {
+    for (i = 0; i < sizeof(pixelSeq) / 2; i++) {
       SetPixel(pixelSeq[i], ColorArray[GREEN]);
       if (CheckForClickWithDelay(delayTime[mode])) return;
     }
@@ -1186,7 +1100,6 @@ void Jack()
   pixels.show();
   if (CheckForClick()) return;
 }
-
 
 // Input a value 0 to 255 to get a color value.
 // The colours are a transition r - g - b - back to r.
