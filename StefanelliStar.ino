@@ -121,14 +121,13 @@ static int last = 0;
 static long lastmillis = 0;
 static long startmillis = 0;
 uint32_t stepsize = 10;
-//uint16_t i, j, k, l;
 
 // Timer routine
 void timerIsr() {
   encoder->service();
 }
 
-// Number of rows of pixels, defined rows of pixels for striped candy cane effect
+// Number of rows of pixels, defined rows of pixels for striped effects
 #define NUMROWS 26
 const PROGMEM int LEDRows[NUMROWS][17] = {
   {39, 40, 99},
@@ -159,6 +158,520 @@ const PROGMEM int LEDRows[NUMROWS][17] = {
   {72, 7, 99}
 };
 
+//SETUP (run once)
+void setup()
+{
+  int i;
+
+  // Initialize encoder
+  encoder = new ClickEncoder(A1, A0, A2);
+
+  // Not sure what this does
+  Timer1.initialize(1000);
+  Timer1.attachInterrupt(timerIsr);
+
+  // Begin serial output
+  Serial.begin(9600);
+
+  randomSeed(analogRead(0));
+
+  // Initialize NeoPixel library
+  pixels.begin();
+  pixels.setBrightness(brightnessValue);
+  pixels.show();
+
+  // Initialize LCD, not sure if backlight does anything
+  lcd.begin();
+  lcd.backlight();
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Stefanelli Star ");
+  lcd.setCursor(0, 1);
+  lcd.print("Version 20200102");
+  delay(5000);
+
+  // Read saved settings from EEPROM
+  EEPROM.get(0, mode);
+  EEPROM.get(sizeof(int), AutoMode);
+  EEPROM.get(sizeof(int) * 2, selectedColor);
+  EEPROM.get(sizeof(int) * 2 + sizeof(selectedColor), delayTime);
+
+  // Range check values
+  if (mode < 0) mode = 0;
+  else if (mode >= NUMMODES) mode = NUMMODES - 1;
+
+  if (AutoMode < 0) AutoMode = 0;
+  else if (AutoMode > 1) AutoMode = 1;
+
+  for ( i = 0; i < NUMMODES; i++) {
+    if (delayTime[i] < 0 || delayTime[i] > MAXDELAYTIME)
+      delayTime[i] = 100;
+    if (selectedColor[i] < 0 || selectedColor[i] >= NUMCOLORS)
+      selectedColor[i] = 0;
+  }
+
+  // Initial test, run through base colors
+  for ( i = 0; i < NUMCOLORS; i++) {
+    Solid(ColorArray[i]);
+    delay(100);
+  }
+  lastmode = -99;
+}
+
+// Main Loop
+void loop()
+{
+  // If AutoMode is active then check if it is time to increment the mode
+  if (AutoMode) {
+    if ((millis() - lastswitchtime) > AUTOTIME) {
+      mode++;
+      if (mode >= NUMMODES)
+        mode = 0;
+      lastswitchtime = millis();
+    }
+  }
+
+  // Periodic check for encoder action
+  CheckForClick();
+
+  // Main switch statement to display selected mode
+  switch (mode) {
+    case SOLID:
+      if (mode != lastmode) {
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print(DisplayModeString[mode]);
+        lastmode = mode;
+        printSelectedColor();
+      }
+      Solid(ColorArray[selectedColor[mode]]);
+      break;
+    case RAINBOW1:
+      if (mode != lastmode) {
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print(DisplayModeString[mode]);
+        lastmode = mode;
+        printDelayTime();
+      }
+      Rainbow1(10);
+      break;
+    case RAINBOW2:
+      if (mode != lastmode) {
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("Rainbow 2");
+        lastmode = mode;
+        printDelayTime();
+      }
+      Rainbow2(10);
+      break;
+    case POINTS:
+      if (mode != lastmode) {
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print(DisplayModeString[mode]);
+        lastmode = mode;
+        printDelayTime();
+      }
+      Points();
+      break;
+    case RAZZLE:
+      if (mode != lastmode) {
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print(DisplayModeString[mode]);
+        lastmode = mode;
+        printDelayTime();
+      }
+      Razzle();
+      break;
+    case REDGREENFADE:
+      if (mode != lastmode) {
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print(DisplayModeString[mode]);
+        lastmode = mode;
+        printDelayTime();
+      }
+      RedGreenFade();
+      break;
+    case TWINKLE:
+      if (mode != lastmode) {
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print(DisplayModeString[mode]);
+        lastmode = mode;
+        printDelayTime();
+      }
+      Twinkle();
+      break;
+    case CHARLIE:
+      if (mode != lastmode) {
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print(DisplayModeString[mode]);
+        lastmode = mode;
+        printDelayTime();
+      }
+      Charlie();
+      break;
+    case JACK:
+      if (mode != lastmode) {
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print(DisplayModeString[mode]);
+        lastmode = mode;
+        printDelayTime();
+      }
+      Jack();
+      break;
+    case BURST:
+      if (mode != lastmode) {
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print(DisplayModeString[mode]);
+        lastmode = mode;
+        printDelayTime();
+      }
+      Burst();
+      break;
+    case BURSTSTACK:
+      if (mode != lastmode) {
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print(DisplayModeString[mode]);
+        lastmode = mode;
+        printDelayTime();
+      }
+      BurstStack();
+      break;
+    case BURSTSTACK2:
+      if (mode != lastmode) {
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print(DisplayModeString[mode]);
+        lastmode = mode;
+        printDelayTime();
+      }
+      BurstStack2();
+      break;
+    case CANDYCANE:
+      if (mode != lastmode) {
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print(DisplayModeString[mode]);
+        lastmode = mode;
+        printDelayTime();
+      }
+      Candycane();
+      break;
+    case STRIPES:
+      if (mode != lastmode) {
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print(DisplayModeString[mode]);
+        lastmode = mode;
+        printDelayTime();
+      }
+      Stripes();
+      break;
+  }
+}
+
+// Fill the dots with solid color
+void Solid(uint32_t c)
+{
+  for (uint16_t i = 0; i < pixels.numPixels(); i++)
+    pixels.setPixelColor(i, c);
+  pixels.show();
+}
+
+// Slightly different, this makes the rainbow equally distributed throughout
+void Rainbow1(uint8_t wait)
+{
+  uint16_t i, j;
+
+  for (j = 0; j < 256 * 5; j++) { // 5 cycles of all colors on wheel
+    for (i = 0; i < pixels.numPixels(); i++)
+    {
+      pixels.setPixelColor(i, Wheel(((i * 256 / pixels.numPixels()) + j) & 255));
+    }
+    pixels.show();
+    if (CheckForClickWithDelay(delayTime[mode])) return;
+  }
+}
+
+//cycle all the brightdots together
+void Rainbow2(uint8_t wait)
+{
+  uint16_t i, j;
+
+  for (j = 0; j < 256; j++)
+  {
+    for (i = 0; i < pixels.numPixels(); i++)
+    {
+      pixels.setPixelColor(i, Wheel((i + j) & 255));
+    }
+    pixels.show();
+    if (CheckForClickWithDelay(delayTime[mode])) return;
+  }
+}
+
+// Sets each point to a different color and then moves them around
+void Points()
+{
+  uint32_t colorSeq[] = {RED, GREEN, BLUE, YELLOW, MAGENTA};
+  int i, j, k, colortimes, totaltimes, spinoffset;
+
+  spinoffset = 0;
+  totaltimes = 10;
+  colortimes = 3;
+
+  for (i = 0; i < 5; i++) {
+    for (j = (i * 16); j < ((i + 1) * 16); j++) {
+      pixels.setPixelColor(j, ColorArray[colorSeq[i]]);
+    }
+  }
+  pixels.show();
+  if (CheckForClickWithDelay(delayTime[mode])) return;
+
+  for (k = 0; k < 1000; k++) {
+    for (i = 0; i < 5; i++) {
+      for (j = (i * 16) + spinoffset; j < ((i + 1) * 16) + spinoffset; j++) {
+        pixels.setPixelColor(j % 80, ColorArray[colorSeq[i]]);
+        if (CheckForClick()) return;
+      }
+    }
+    spinoffset++;
+    pixels.show();
+    if (CheckForClickWithDelay(delayTime[mode])) return;
+
+  }
+}
+
+// Fill the dots one after the other with a color
+void Razzle() {
+  int i, j;
+  
+  // Green
+  for (i = 0; i < pixels.numPixels(); i++)
+    pixels.setPixelColor(i, ColorArray[GREEN]);
+  pixels.show();
+  if (CheckForClickWithDelay(500)) return;
+
+  for (i = 0; i < LEDSPERLEG; i++) {
+    for (j = 0; j < NUMPOINTS; j++) {
+      pixels.setPixelColor((j * LEDSPERPOINT) + i, ColorArray[RED]);
+      pixels.setPixelColor((j * LEDSPERPOINT + LEDSPERPOINT - 1) - i, ColorArray[RED]);
+    }
+    pixels.show();
+    if (CheckForClickWithDelay(delayTime[mode])) return;
+  }
+
+  if (CheckForClickWithDelay(500)) return;
+  for (i = 0; i < LEDSPERLEG; i++) {
+    for (j = 0; j < NUMPOINTS; j++) {
+      pixels.setPixelColor((j * LEDSPERPOINT) + i, ColorArray[GREEN]);
+      pixels.setPixelColor((j * LEDSPERPOINT + LEDSPERPOINT - 1) - i, ColorArray[GREEN]);
+    }
+    pixels.show();
+    if (CheckForClickWithDelay(delayTime[mode])) return;
+  }
+}
+
+// Fade back and forth between red and green
+void RedGreenFade() {
+  int i;
+
+  for (i = 0; i < pixels.numPixels(); i++) {
+    pixels.setPixelColor(i, ColorArray[GREEN]);
+    if (CheckForClick()) return;
+  }
+  pixels.show();
+
+  for (i = 0; i < 255; i++) {
+    Solid(pixels.Color(i, 255 - i, 0));
+    if (CheckForClick()) return;
+    pixels.show();
+  }
+
+  CheckForClickWithDelay(delayTime[mode] * 10);
+
+  for (i = 0; i < 255; i++) {
+    Solid(pixels.Color(255 - i, i, 0));
+    if (CheckForClick()) return;
+    pixels.show();
+  }
+
+  CheckForClickWithDelay(delayTime[mode] * 10);
+}
+
+// Color all green and have randomly have red dots pop in and out
+void Twinkle()
+{
+  int NumReds = 20;
+  int Reds[20];
+  int FT = 1;
+  int PixelStatus[NUMLEDS];
+  int randomCandidate;
+  int i;
+
+  for (i = 0; i < pixels.numPixels(); i++) {
+    pixels.setPixelColor(i, ColorArray[GREEN]);
+    PixelStatus[i] = 0;
+  }
+  pixels.show();
+
+  if (CheckForClick()) return;
+
+  while (true) {
+    for (i = 0; i < NumReds; i++) {
+      randomCandidate = random(1, NUMLEDS - 2);
+      while (PixelStatus[randomCandidate]) {
+        randomCandidate = random(1, NUMLEDS - 2);
+      }
+      if (!FT) {
+        PixelStatus[Reds[i]] = 0;
+        if (PixelStatus[Reds[i] + 2] != 2)
+          PixelStatus[Reds[i] + 1] = 0;
+        if (PixelStatus[Reds[i] - 2] != 2)
+          PixelStatus[Reds[i] - 1] = 0;
+        pixels.setPixelColor(Reds[i], ColorArray[GREEN]);
+      }
+      Reds[i] = randomCandidate;
+      PixelStatus[randomCandidate] = 2;
+      PixelStatus[randomCandidate + 1] = 1;
+      PixelStatus[randomCandidate - 1] = 1;
+      pixels.setPixelColor(Reds[i], ColorArray[RED]);
+      pixels.show();
+      if (CheckForClickWithDelay(delayTime[mode])) return;
+    }
+    FT = 0;
+  }
+}
+
+void Burst() {
+  int i, j;
+  
+  // Green
+  for (i = 0; i < pixels.numPixels(); i++)
+    pixels.setPixelColor(i, ColorArray[GREEN]);
+  pixels.show();
+  if (CheckForClickWithDelay(500)) return;
+
+  for (i = 0; i < LEDSPERLEG; i++) {
+    for (j = 0; j < NUMPOINTS; j++) {
+      pixels.setPixelColor((j * LEDSPERPOINT) + i, ColorArray[RED]);
+      pixels.setPixelColor((j * LEDSPERPOINT + LEDSPERPOINT - 1) - i, ColorArray[RED]);
+      if (i > 0) {
+        pixels.setPixelColor((j * LEDSPERPOINT) + i - 1, ColorArray[GREEN]);
+        pixels.setPixelColor((j * LEDSPERPOINT + LEDSPERPOINT - 1) - i + 1, ColorArray[GREEN]);
+      }
+    }
+    pixels.show();
+    if (CheckForClickWithDelay(delayTime[mode])) return;
+  }
+}
+
+void BurstStack() {
+  int backstep = 0;
+  int i, j, k;
+
+  for (i = 0; i < pixels.numPixels(); i++)
+    pixels.setPixelColor(i, ColorArray[GREEN]);
+  pixels.show();
+  if (CheckForClickWithDelay(500)) return;
+
+  for (k = 0; k < LEDSPERLEG; k++) {
+    for (i = 0; i < (LEDSPERLEG - backstep); i++) {
+      for (j = 0; j < NUMPOINTS; j++) {
+        pixels.setPixelColor((j * LEDSPERPOINT) + i, ColorArray[RED]);
+        pixels.setPixelColor((j * LEDSPERPOINT + LEDSPERPOINT - 1) - i, ColorArray[RED]);
+        if (i > 0 ) {
+          pixels.setPixelColor((j * LEDSPERPOINT) + i - 1, ColorArray[GREEN]);
+          pixels.setPixelColor((j * LEDSPERPOINT + LEDSPERPOINT - 1) - i + 1, ColorArray[GREEN]);
+        }
+      }
+      pixels.show();
+      if (CheckForClickWithDelay(delayTime[mode])) return;
+    }
+    backstep++;
+    if (backstep > LEDSPERLEG)
+      backstep = 0;
+  }
+
+  if (CheckForClickWithDelay(500)) return;
+}
+
+void BurstStack2() {
+  int backstep = 0;
+  int i, j, k;
+
+  for (i = 0; i < pixels.numPixels(); i++)
+    pixels.setPixelColor(i, ColorArray[GREEN]);
+  pixels.show();
+  if (CheckForClickWithDelay(500)) return;
+
+  for (k = 0; k < LEDSPERLEG; k++) {
+    for (i = 0; i < (LEDSPERLEG - backstep); i++) {
+      for (j = 0; j < NUMPOINTS; j++) {
+        pixels.setPixelColor((j * LEDSPERPOINT) + i, ColorArray[RED]);
+        pixels.setPixelColor((j * LEDSPERPOINT + LEDSPERPOINT - 1) - i, ColorArray[RED]);
+        if (i > 0 ) {
+          pixels.setPixelColor((j * LEDSPERPOINT) + i - 1, ColorArray[GREEN]);
+          pixels.setPixelColor((j * LEDSPERPOINT + LEDSPERPOINT - 1) - i + 1, ColorArray[GREEN]);
+        }
+      }
+      pixels.show();
+      if (CheckForClickWithDelay(delayTime[mode])) return;
+    }
+    backstep++;
+    if (backstep > LEDSPERLEG)
+      backstep = 0;
+  }
+  if (CheckForClickWithDelay(500)) return;
+
+  for (k = 0; k < LEDSPERLEG; k++) {
+    for (i = 0; i < (LEDSPERLEG - backstep); i++) {
+      for (j = 0; j < NUMPOINTS; j++) {
+        pixels.setPixelColor((j * LEDSPERPOINT) + i, ColorArray[GREEN]);
+        pixels.setPixelColor((j * LEDSPERPOINT + LEDSPERPOINT - 1) - i, ColorArray[GREEN]);
+        if (i > 0 ) {
+          pixels.setPixelColor((j * LEDSPERPOINT) + i - 1, ColorArray[RED]);
+          pixels.setPixelColor((j * LEDSPERPOINT + LEDSPERPOINT - 1) - i + 1, ColorArray[RED]);
+        }
+      }
+      pixels.show();
+      if (CheckForClickWithDelay(delayTime[mode])) return;
+    }
+    backstep++;
+    if (backstep > LEDSPERLEG)
+      backstep = 0;
+  }
+}
+
+void Candycane() {
+
+  int redstep = 0;
+  int i;
+  
+  for (i = 0; i < pixels.numPixels(); i++)
+    pixels.setPixelColor(i, ColorArray[WHITE]);
+
+  if (CheckForClickWithDelay(500)) return;
+
+  for (i = 0; i < NUMLEDS / 2; i++) {
+    if ((i % 4) < 2) {
+      pixels.setPixelColor(40 + i, ColorArray[RED]);
+      pixels.setPixelColor(39 - i, ColorArray[RED]);
+    }
+  }
+  pixels.show();
+  if (CheckForClickWithDelay(delayTime[mode])) return;
+}
+
+// Make stripes pattern
 void Stripes() {
   int backstep = 0;
   int RowStart = 0;
@@ -178,7 +691,6 @@ void Stripes() {
     }
     backstep++;
   }
-
 }
 
 // Print the delay time to the 2nd line of the LCD
@@ -189,6 +701,7 @@ void printDelayTime() {
   lcd.print(delayTime[mode]);
   lcd.print(" ms");
 }
+
 
 // Print the Color to the 2nd line of the LCD
 void printSelectedColor() {
@@ -322,653 +835,7 @@ int CheckForClickWithDelay(long tdelay)
   }
 }
 
-//SETUP (run once)
-void setup()
-{
-  int i;
 
-  // Initialize encoder
-  encoder = new ClickEncoder(A1, A0, A2);
-
-  // Not sure what this does
-  Timer1.initialize(1000);
-  Timer1.attachInterrupt(timerIsr);
-
-  // Begin serial output
-  Serial.begin(9600);
-
-  randomSeed(analogRead(0));
-
-  // Initialize NeoPixel library
-  pixels.begin();
-  pixels.setBrightness(brightnessValue);
-  pixels.show();
-
-  // Initialize LCD, not sure if backlight does anything
-  lcd.begin();
-  lcd.backlight();
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Stefanelli Star ");
-  lcd.setCursor(0, 1);
-  lcd.print("Version 20200102");
-  delay(5000);
-
-  // Read saved settings from EEPROM
-  EEPROM.get(0, mode);
-  EEPROM.get(sizeof(int), AutoMode);
-  EEPROM.get(sizeof(int) * 2, selectedColor);
-  EEPROM.get(sizeof(int) * 2 + sizeof(selectedColor), delayTime);
-
-  // Range check values
-  if (mode < 0) mode = 0;
-  else if (mode >= NUMMODES) mode = NUMMODES - 1;
-
-  if (AutoMode < 0) AutoMode = 0;
-  else if (AutoMode > 1) AutoMode = 1;
-
-  for ( i = 0; i < NUMMODES; i++) {
-    if (delayTime[i] < 0 || delayTime[i] > MAXDELAYTIME)
-      delayTime[i] = 100;
-    if (selectedColor[i] < 0 || selectedColor[i] >= NUMCOLORS)
-      selectedColor[i] = 0;
-  }
-
-  // Initial test, run through base colors
-  for ( i = 0; i < NUMCOLORS; i++) {
-    Solid(ColorArray[i]);
-    delay(100);
-  }
-  lastmode = -99;
-}
-
-// Main Loop
-void loop()
-{
-  // If AutoMode is active then check if it is time to increment the mode
-  if (AutoMode) {
-    if ((millis() - lastswitchtime) > AUTOTIME) {
-      mode++;
-      if (mode >= NUMMODES)
-        mode = 0;
-      lastswitchtime = millis();
-    }
-  }
-
-  // Periodic check for encoder action
-  CheckForClick();
-
-  // Main switch statement to display selected mode
-  switch (mode) {
-    case SOLID:
-      if (mode != lastmode) {
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print(DisplayModeString[mode]);
-        lastmode = mode;
-        printSelectedColor();
-      }
-      Solid(ColorArray[selectedColor[mode]]);
-      break;
-    case RAINBOW1:
-      if (mode != lastmode) {
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print(DisplayModeString[mode]);
-        lastmode = mode;
-        printDelayTime();
-      }
-      rainbow1(10);
-      break;
-    case RAINBOW2:
-      if (mode != lastmode) {
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Rainbow 2");
-        lastmode = mode;
-        printDelayTime();
-      }
-      rainbow2(10);
-      break;
-    case POINTS:
-      if (mode != lastmode) {
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print(DisplayModeString[mode]);
-        lastmode = mode;
-        printDelayTime();
-      }
-      Points();
-      break;
-    case RAZZLE:
-      if (mode != lastmode) {
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print(DisplayModeString[mode]);
-        lastmode = mode;
-        printDelayTime();
-      }
-      Razzle();
-      break;
-    case REDGREENFADE:
-      if (mode != lastmode) {
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print(DisplayModeString[mode]);
-        lastmode = mode;
-        printDelayTime();
-      }
-      RedGreenFade();
-      break;
-    case TWINKLE:
-      if (mode != lastmode) {
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print(DisplayModeString[mode]);
-        lastmode = mode;
-        printDelayTime();
-      }
-      Twinkle();
-      break;
-    case CHARLIE:
-      if (mode != lastmode) {
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print(DisplayModeString[mode]);
-        lastmode = mode;
-        printDelayTime();
-      }
-      Charlie();
-      break;
-    case JACK:
-      if (mode != lastmode) {
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print(DisplayModeString[mode]);
-        lastmode = mode;
-        printDelayTime();
-      }
-      Jack();
-      break;
-    case BURST:
-      if (mode != lastmode) {
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print(DisplayModeString[mode]);
-        lastmode = mode;
-        printDelayTime();
-      }
-      Burst();
-      break;
-    case BURSTSTACK:
-      if (mode != lastmode) {
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print(DisplayModeString[mode]);
-        lastmode = mode;
-        printDelayTime();
-      }
-      BurstStack();
-      break;
-    case BURSTSTACK2:
-      if (mode != lastmode) {
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print(DisplayModeString[mode]);
-        lastmode = mode;
-        printDelayTime();
-      }
-      BurstStack2();
-      break;
-    case CANDYCANE:
-      if (mode != lastmode) {
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print(DisplayModeString[mode]);
-        lastmode = mode;
-        printDelayTime();
-      }
-      Candycane();
-      break;
-    case STRIPES:
-      if (mode != lastmode) {
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print(DisplayModeString[mode]);
-        lastmode = mode;
-        printDelayTime();
-      }
-      Stripes();
-      break;
-  }
-}
-
-// Fill the dots with solid color
-void Solid(uint32_t c)
-{
-  for (uint16_t i = 0; i < pixels.numPixels(); i++)
-    pixels.setPixelColor(i, c);
-  pixels.show();
-}
-
-// Sets each point to a different color and then moves them around
-void Points()
-{
-  uint32_t colorSeq[] = {RED, GREEN, BLUE, YELLOW, MAGENTA};
-  int i, j, k, colortimes, totaltimes, spinoffset;
-
-  spinoffset = 0;
-  totaltimes = 10;
-  colortimes = 3;
-
-  for (i = 0; i < 5; i++) {
-    for (j = (i * 16); j < ((i + 1) * 16); j++) {
-      pixels.setPixelColor(j, ColorArray[colorSeq[i]]);
-    }
-  }
-  pixels.show();
-  if (CheckForClickWithDelay(delayTime[mode])) return;
-
-  for (k = 0; k < 1000; k++) {
-    for (i = 0; i < 5; i++) {
-      for (j = (i * 16) + spinoffset; j < ((i + 1) * 16) + spinoffset; j++) {
-        pixels.setPixelColor(j % 80, ColorArray[colorSeq[i]]);
-        if (CheckForClick()) return;
-      }
-    }
-    spinoffset++;
-    pixels.show();
-    if (CheckForClickWithDelay(delayTime[mode])) return;
-
-  }
-}
-
-// Bounce colored pixel around
-void Bounce(uint32_t color)
-{
-  int i;
-
-  for (i = 0; i < pixels.numPixels(); i++)
-    pixels.setPixelColor(i, ColorArray[BLACK]);
-
-  pixels.show();
-  if (CheckForClick()) return;
-
-  for (i = 0; i < pixels.numPixels(); i++) {
-    if (i == 0)
-      pixels.setPixelColor(i, color);
-    else {
-      pixels.setPixelColor(i - 1, pixels.Color(0, 0, 0));
-      pixels.setPixelColor(i, color);
-    }
-    pixels.show();
-    if (CheckForClickWithDelay(delayTime[mode])) return;
-
-  }
-  for (i = pixels.numPixels(); i >= 0; i--) {
-    if (i == pixels.numPixels())
-      pixels.setPixelColor(i, color);
-    else {
-      pixels.setPixelColor(i + 1, pixels.Color(0, 0, 0));
-      pixels.setPixelColor(i, color);
-    }
-    pixels.show();
-    if (CheckForClickWithDelay(delayTime[mode])) return;
-
-  }
-}
-
-// Make colors go round and round
-void RoundAndRound()
-{
-  int i, j, k, colortimes, totaltimes;
-  totaltimes = 10;
-  colortimes = 3;
-
-  for (j = 0; j < pixels.numPixels(); j++)
-    pixels.setPixelColor(j, ColorArray[BLACK]);
-  pixels.show();
-  if (CheckForClick()) return;
-
-  for (j = 0; j < pixels.numPixels(); j++) {
-    if (j == 0)
-      pixels.setPixelColor(i, ColorArray[selectedColor[mode]]);
-    else {
-      pixels.setPixelColor(j - 1, pixels.Color(0, 0, 0));
-      pixels.setPixelColor(j, ColorArray[selectedColor[mode]]);
-    }
-    pixels.show();
-    if (CheckForClickWithDelay(delayTime[mode])) return;
-  }
-
-}
-
-// Fill the dots one after the other with a color
-void Experimental()
-{
-
-  for (uint16_t i = 0; i < pixels.numPixels(); i++)
-    pixels.setPixelColor(i, pixels.Color(0, 0, 0));
-  pixels.show();
-  if (CheckForClick()) return;
-
-  // White
-  for (uint16_t i = 0; i < pixels.numPixels(); i++)
-  {
-    if (i == 0)
-      pixels.setPixelColor(i, pixels.Color(255, 255, 255));
-    else {
-      pixels.setPixelColor(i - 1, pixels.Color(0, 0, 0));
-      pixels.setPixelColor(i, pixels.Color(255, 255, 255));
-    }
-    pixels.show();
-    if (CheckForClickWithDelay(delayTime[mode])) return;
-  }
-  for (uint16_t i = 0; i < pixels.numPixels(); i++)
-    pixels.setPixelColor(i, pixels.Color(255, 255, 255));
-  pixels.show();
-  if (CheckForClickWithDelay(delayTime[mode])) return;
-  // Red
-  for (uint16_t i = 0; i < pixels.numPixels(); i++) {
-    if (i == 0)
-      pixels.setPixelColor(i, pixels.Color(255, 0, 0));
-    else {
-      pixels.setPixelColor(i - 1, pixels.Color(255, 255, 255));
-      pixels.setPixelColor(i, pixels.Color(255, 0, 0));
-    }
-    pixels.show();
-    if (CheckForClickWithDelay(delayTime[mode])) return;
-  }
-  for (uint16_t i = 0; i < pixels.numPixels(); i++)
-    pixels.setPixelColor(i, pixels.Color(255, 0, 0));
-  pixels.show();
-  if (CheckForClickWithDelay(delayTime[mode])) return;
-
-  // Green
-  for (uint16_t i = 0; i < pixels.numPixels(); i++) {
-    if (i == 0)
-      pixels.setPixelColor(i, pixels.Color(0, 255, 0));
-    else {
-      pixels.setPixelColor(i - 1, pixels.Color(255, 0, 0));
-      pixels.setPixelColor(i, pixels.Color(0, 255, 0));
-    }
-    pixels.show();
-    if (CheckForClickWithDelay(delayTime[mode])) return;
-  }
-
-  for (uint16_t i = 0; i < pixels.numPixels(); i++)
-    pixels.setPixelColor(i, pixels.Color(0, 255, 0));
-  pixels.show();
-  if (CheckForClickWithDelay(delayTime[mode])) return;
-
-  // Blue
-  for (uint16_t i = 0; i < pixels.numPixels(); i++) {
-    if (i == 0)
-      pixels.setPixelColor(i, pixels.Color(0, 0, 255));
-    else {
-      pixels.setPixelColor(i - 1, pixels.Color(0, 255, 0));
-      pixels.setPixelColor(i, pixels.Color(0, 0, 255));
-    }
-    pixels.show();
-    if (CheckForClickWithDelay(delayTime[mode])) return;
-  }
-  for (uint16_t i = 0; i < pixels.numPixels(); i++)
-    pixels.setPixelColor(i, pixels.Color(0, 0, 255));
-  pixels.show();
-  if (CheckForClickWithDelay(delayTime[mode])) return;
-}
-
-// Fill the dots one after the other with a color
-void Razzle() {
-  int i, j;
-  
-  // Green
-  for (i = 0; i < pixels.numPixels(); i++)
-    pixels.setPixelColor(i, ColorArray[GREEN]);
-  pixels.show();
-  if (CheckForClickWithDelay(500)) return;
-
-  for (i = 0; i < LEDSPERLEG; i++) {
-    for (j = 0; j < NUMPOINTS; j++) {
-      pixels.setPixelColor((j * LEDSPERPOINT) + i, ColorArray[RED]);
-      pixels.setPixelColor((j * LEDSPERPOINT + LEDSPERPOINT - 1) - i, ColorArray[RED]);
-    }
-    pixels.show();
-    if (CheckForClickWithDelay(delayTime[mode])) return;
-  }
-
-  if (CheckForClickWithDelay(500)) return;
-  for (i = 0; i < LEDSPERLEG; i++) {
-    for (j = 0; j < NUMPOINTS; j++) {
-      pixels.setPixelColor((j * LEDSPERPOINT) + i, ColorArray[GREEN]);
-      pixels.setPixelColor((j * LEDSPERPOINT + LEDSPERPOINT - 1) - i, ColorArray[GREEN]);
-    }
-    pixels.show();
-    if (CheckForClickWithDelay(delayTime[mode])) return;
-  }
-}
-
-void Burst() {
-  int i, j;
-  
-  // Green
-  for (i = 0; i < pixels.numPixels(); i++)
-    pixels.setPixelColor(i, ColorArray[GREEN]);
-  pixels.show();
-  if (CheckForClickWithDelay(500)) return;
-
-  for (i = 0; i < LEDSPERLEG; i++) {
-    for (j = 0; j < NUMPOINTS; j++) {
-      pixels.setPixelColor((j * LEDSPERPOINT) + i, ColorArray[RED]);
-      pixels.setPixelColor((j * LEDSPERPOINT + LEDSPERPOINT - 1) - i, ColorArray[RED]);
-      if (i > 0) {
-        pixels.setPixelColor((j * LEDSPERPOINT) + i - 1, ColorArray[GREEN]);
-        pixels.setPixelColor((j * LEDSPERPOINT + LEDSPERPOINT - 1) - i + 1, ColorArray[GREEN]);
-      }
-    }
-    pixels.show();
-    if (CheckForClickWithDelay(delayTime[mode])) return;
-  }
-}
-
-void BurstStack() {
-  int backstep = 0;
-  int i, j, k;
-
-  for (i = 0; i < pixels.numPixels(); i++)
-    pixels.setPixelColor(i, ColorArray[GREEN]);
-  pixels.show();
-  if (CheckForClickWithDelay(500)) return;
-
-  for (k = 0; k < LEDSPERLEG; k++) {
-    for (i = 0; i < (LEDSPERLEG - backstep); i++) {
-      for (j = 0; j < NUMPOINTS; j++) {
-        pixels.setPixelColor((j * LEDSPERPOINT) + i, ColorArray[RED]);
-        pixels.setPixelColor((j * LEDSPERPOINT + LEDSPERPOINT - 1) - i, ColorArray[RED]);
-        if (i > 0 ) {
-          pixels.setPixelColor((j * LEDSPERPOINT) + i - 1, ColorArray[GREEN]);
-          pixels.setPixelColor((j * LEDSPERPOINT + LEDSPERPOINT - 1) - i + 1, ColorArray[GREEN]);
-        }
-      }
-      pixels.show();
-      if (CheckForClickWithDelay(delayTime[mode])) return;
-    }
-    backstep++;
-    if (backstep > LEDSPERLEG)
-      backstep = 0;
-  }
-
-  if (CheckForClickWithDelay(500)) return;
-}
-
-void BurstStack2() {
-  int backstep = 0;
-  int i, j, k;
-
-  for (i = 0; i < pixels.numPixels(); i++)
-    pixels.setPixelColor(i, ColorArray[GREEN]);
-  pixels.show();
-  if (CheckForClickWithDelay(500)) return;
-
-  for (k = 0; k < LEDSPERLEG; k++) {
-    for (i = 0; i < (LEDSPERLEG - backstep); i++) {
-      for (j = 0; j < NUMPOINTS; j++) {
-        pixels.setPixelColor((j * LEDSPERPOINT) + i, ColorArray[RED]);
-        pixels.setPixelColor((j * LEDSPERPOINT + LEDSPERPOINT - 1) - i, ColorArray[RED]);
-        if (i > 0 ) {
-          pixels.setPixelColor((j * LEDSPERPOINT) + i - 1, ColorArray[GREEN]);
-          pixels.setPixelColor((j * LEDSPERPOINT + LEDSPERPOINT - 1) - i + 1, ColorArray[GREEN]);
-        }
-      }
-      pixels.show();
-      if (CheckForClickWithDelay(delayTime[mode])) return;
-    }
-    backstep++;
-    if (backstep > LEDSPERLEG)
-      backstep = 0;
-  }
-  if (CheckForClickWithDelay(500)) return;
-
-  for (k = 0; k < LEDSPERLEG; k++) {
-    for (i = 0; i < (LEDSPERLEG - backstep); i++) {
-      for (j = 0; j < NUMPOINTS; j++) {
-        pixels.setPixelColor((j * LEDSPERPOINT) + i, ColorArray[GREEN]);
-        pixels.setPixelColor((j * LEDSPERPOINT + LEDSPERPOINT - 1) - i, ColorArray[GREEN]);
-        if (i > 0 ) {
-          pixels.setPixelColor((j * LEDSPERPOINT) + i - 1, ColorArray[RED]);
-          pixels.setPixelColor((j * LEDSPERPOINT + LEDSPERPOINT - 1) - i + 1, ColorArray[RED]);
-        }
-      }
-      pixels.show();
-      if (CheckForClickWithDelay(delayTime[mode])) return;
-    }
-    backstep++;
-    if (backstep > LEDSPERLEG)
-      backstep = 0;
-  }
-}
-
-
-void Candycane() {
-
-  int redstep = 0;
-  int i;
-  
-  for (i = 0; i < pixels.numPixels(); i++)
-    pixels.setPixelColor(i, ColorArray[WHITE]);
-
-  if (CheckForClickWithDelay(500)) return;
-
-  for (i = 0; i < NUMLEDS / 2; i++) {
-    if ((i % 4) < 2) {
-      pixels.setPixelColor(40 + i, ColorArray[RED]);
-      pixels.setPixelColor(39 - i, ColorArray[RED]);
-    }
-  }
-  pixels.show();
-  if (CheckForClickWithDelay(delayTime[mode])) return;
-}
-
-void RedGreenFade() {
-  int i;
-
-  for (i = 0; i < pixels.numPixels(); i++) {
-    pixels.setPixelColor(i, ColorArray[GREEN]);
-    if (CheckForClick()) return;
-  }
-  pixels.show();
-
-  for (i = 0; i < 255; i++) {
-    Solid(pixels.Color(i, 255 - i, 0));
-    if (CheckForClick()) return;
-    pixels.show();
-  }
-
-  CheckForClickWithDelay(delayTime[mode] * 10);
-
-  for (i = 0; i < 255; i++) {
-    Solid(pixels.Color(255 - i, i, 0));
-    if (CheckForClick()) return;
-    pixels.show();
-  }
-
-  CheckForClickWithDelay(delayTime[mode] * 10);
-}
-
-// Color all green and have randomly have red dots pop in and out
-void Twinkle()
-{
-  int NumReds = 20;
-  int Reds[20];
-  int FT = 1;
-  int PixelStatus[NUMLEDS];
-  int randomCandidate;
-  int i;
-
-  for (i = 0; i < pixels.numPixels(); i++) {
-    pixels.setPixelColor(i, ColorArray[GREEN]);
-    PixelStatus[i] = 0;
-  }
-  pixels.show();
-
-  if (CheckForClick()) return;
-
-  while (true) {
-    for (i = 0; i < NumReds; i++) {
-      randomCandidate = random(1, NUMLEDS - 2);
-      while (PixelStatus[randomCandidate]) {
-        randomCandidate = random(1, NUMLEDS - 2);
-      }
-      if (!FT) {
-        PixelStatus[Reds[i]] = 0;
-        if (PixelStatus[Reds[i] + 2] != 2)
-          PixelStatus[Reds[i] + 1] = 0;
-        if (PixelStatus[Reds[i] - 2] != 2)
-          PixelStatus[Reds[i] - 1] = 0;
-        pixels.setPixelColor(Reds[i], ColorArray[GREEN]);
-      }
-      Reds[i] = randomCandidate;
-      PixelStatus[randomCandidate] = 2;
-      PixelStatus[randomCandidate + 1] = 1;
-      PixelStatus[randomCandidate - 1] = 1;
-      pixels.setPixelColor(Reds[i], ColorArray[RED]);
-      pixels.show();
-      if (CheckForClickWithDelay(delayTime[mode])) return;
-    }
-    FT = 0;
-  }
-}
-
-//cycle all the brightdots together
-void rainbow2(uint8_t wait)
-{
-  uint16_t i, j;
-
-  for (j = 0; j < 256; j++)
-  {
-    for (i = 0; i < pixels.numPixels(); i++)
-    {
-      pixels.setPixelColor(i, Wheel((i + j) & 255));
-    }
-    pixels.show();
-    if (CheckForClickWithDelay(delayTime[mode])) return;
-  }
-}
-
-// Slightly different, this makes the rainbow equally distributed throughout
-void rainbow1(uint8_t wait)
-{
-  uint16_t i, j;
-
-  for (j = 0; j < 256 * 5; j++) { // 5 cycles of all colors on wheel
-    for (i = 0; i < pixels.numPixels(); i++)
-    {
-      pixels.setPixelColor(i, Wheel(((i * 256 / pixels.numPixels()) + j) & 255));
-    }
-    pixels.show();
-    if (CheckForClickWithDelay(delayTime[mode])) return;
-  }
-}
 
 void SetPixel(uint8_t pixelnum, uint32_t color) {
   int i;
